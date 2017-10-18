@@ -9,6 +9,8 @@ from operator import itemgetter
 # It counts the lines to determine how many times the loop runs to activate the
 # input pins according to the pipins.conf file.
 
+SLEEP_TIME  = 0.01
+NOTIFY_LIST = ['*******@*******.com', '*********@**********.com']
 actspins = []
 sensor = []
 
