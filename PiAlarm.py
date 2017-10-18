@@ -1,24 +1,35 @@
 #!/usr/bin/env python
  
-from settings import DOOR_PIN, SLEEP_TIME, NOTIFY_LIST, WIN0, WIN1, WIN2
- 
 import time
 from datetime import datetime
 import subprocess
 from string import Template
- 
+from operator import itemgetter
+
+# It counts the lines to determine how many times the loop runs to activate the
+# input pins according to the pipins.conf file.
+
+actspins = []
+sensor = []
+
+pins = []
+with open('pipins.conf') as my_file:
+    for line in my_file:
+        pins.append(line)
+    #Reads the index 0 of each subarray and makes a new array of the active pins.
+    pins(map(itemgetter(0), actpins))
+    #Reads the index 1 of each subarray and makes a new array of the active pin's name.
+    pins(map(itemgetter(1), sensor))
+
 #
 # Notification by email
  
 def current_date (fmt="%a %d-%m-%Y @ %H:%M:%S"):
     return datetime.strftime(datetime.now(), fmt)
  
-NOTIFY_CMD = {DOOR_PIN: Template("""echo "$date door $state" | mail -s "Pi: door $state" $email"""), 
-              WIN0:     Template("""echo "$date East Window $state" | mail -s "Pi: East Window $state" $email"""),
-              WIN1:     Template("""echo "$date North Window $state" | mail -s "Pi: North Window $state" $email"""),
-              WIN2:     Template("""echo "$date West Window $state" | mail -s "Pi: West Window $state" $email""")}
+NOTIFY_CMD = {actpins: Template("""echo "$date $sensor $state" | mail -s "Pi: $sensor $state" $email""")}
  
-def notify (id, state):
+def notify (id, state, sensor):
     """Send each of the email addresses in NOTIFY_LIST a message"""
  
     for email in NOTIFY_LIST:
@@ -37,23 +48,23 @@ def notify (id, state):
 import RPi.GPIO as io
 io.setmode(io.BCM)
  
-io.setup([DOOR_PIN, WIN0, WIN1, WIN2], io.IN,
+io.setup([actpins], io.IN,
          pull_up_down=io.PUD_UP) # activate the reed input with PullUp
  
 STATE = {}
-for id in [DOOR_PIN, WIN0, WIN1, WIN2]:
+for id in [actpins]:
   STATE[id] = {'current': 'closed',
                'prior'  : 'closed'}
 
 while True:
     notification_list = []
-    for id in [DOOR_PIN, WIN0, WIN1, WIN2]:
+    for id in [actpins, sensor]:
         STATE[id]['prior'] = STATE[id]['current']
         STATE[id]['current'] = 'opened' if io.input(id) else 'closed'
         if STATE[id]['current'] != STATE[id]['prior']: # only need to do anything on change
-            notification_list.append((id, STATE[id]['current']))
+            notification_list.append((id, STATE[id]['current'], sensor[id]))
     # maybe do all the emailing together at the end - or less frequently
     for id, state in notification_list:
-        notify(id, state)
+        notify(id, state, sensor)
  
-    time.sleep(SLEEP_TIME)
+    time.sleep(
