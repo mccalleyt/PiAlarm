@@ -69,4 +69,4 @@ while True:
     for id, state in notification_list:
         notify(id, state, sensor)
  
-    time.sleep(
+    time.sleep()
