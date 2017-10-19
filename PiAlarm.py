@@ -1,72 +1,54 @@
 #!/usr/bin/env python
- 
+from gpiozero import Button
+from signal import pause
 import time
 from datetime import datetime
 import subprocess
 from string import Template
-from operator import itemgetter
 
-# It counts the lines to determine how many times the loop runs to activate the
-# input pins according to the pipins.conf file.
+aSLEEP_TIME  = 0.01
+NOTIFY_LIST = ['*******@*******.com', '*********@**********.com'] 
+#ACTPINS = {8:'Door',
+#           9:'East Window',
+#           10:'West Window',
+#           11:'Motion Diningroom'}
 
-SLEEP_TIME  = 0.01
-NOTIFY_LIST = ['*******@*******.com', '*********@**********.com']
-actspins = []
-sensor = []
+ACTPINS = []
+SENSOR = []
+PINS = []
 
-pins = []
 with open('pipins.conf') as my_file:
     for line in my_file:
-        pins.append(line)
-    #Reads the index 0 of each subarray and makes a new array of the active pins.
-    pins(map(itemgetter(0), actpins))
-    #Reads the index 1 of each subarray and makes a new array of the active pin's name.
-    pins(map(itemgetter(1), sensor))
+        PINS.append(line)
 
-#
-# Notification by email
- 
+ACTPINS = [i[0] for i in PINS]
+SENSOR  = [i[1] for i in PINS]
+
 def current_date (fmt="%a %d-%m-%Y @ %H:%M:%S"):
     return datetime.strftime(datetime.now(), fmt)
+
+NOTIFY_CMD = {pin: Template("""echo "$date $sensor $state" | mail -s "Pi: $sensor $state" $email""") for pin in ACTPINS}
  
-NOTIFY_CMD = {actpins: Template("""echo "$date $sensor $state" | mail -s "Pi: $sensor $state" $email""")}
- 
-def notify (id, state, sensor):
+def notify (id, state, sensor_name):
     """Send each of the email addresses in NOTIFY_LIST a message"""
- 
     for email in NOTIFY_LIST:
         shell_cmd = NOTIFY_CMD[id].substitute(date=current_date(),
-                                          state=state,
-                                          email=email)
-        proc = subprocess.Popen(shell_cmd,
-                                shell=True,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+                                  state=state, sensor=sensor_name, email=email)
+        proc = subprocess.Popen(shell_cmd, shell=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout_value, stderr_value = proc.communicate()
+        with open('log.txt', 'a') as f:
+          f.write('{}\n'.format(shell_cmd))
  
-#
-# GPIO logic
- 
-import RPi.GPIO as io
-io.setmode(io.BCM)
- 
-io.setup([actpins], io.IN,
-         pull_up_down=io.PUD_UP) # activate the reed input with PullUp
- 
-STATE = {}
-for id in [actpins]:
-  STATE[id] = {'current': 'closed',
-               'prior'  : 'closed'}
+def do_action(button):
+  # function to send email etc will only run when opened or closed
+  state = 'closed' if button.is_pressed else 'opened'
+  notify(button.pin, state, ACTPINS[button.pin])
 
-while True:
-    notification_list = []
-    for id in [actpins, sensor]:
-        STATE[id]['prior'] = STATE[id]['current']
-        STATE[id]['current'] = 'opened' if io.input(id) else 'closed'
-        if STATE[id]['current'] != STATE[id]['prior']: # only need to do anything on change
-            notification_list.append((id, STATE[id]['current'], sensor[id]))
-    # maybe do all the emailing together at the end - or less frequently
-    for id, state in notification_list:
-        notify(id, state, sensor)
- 
-    time.sleep()
+buttons = {}
+for id in ACTPINS:
+  buttons[id] = Button(id)
+  buttons[id].when_pressed = do_action
+  buttons[id].when_released = do_action
+
+pause()
