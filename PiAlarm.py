@@ -13,16 +13,11 @@ NOTIFY_LIST = ['*******@*******.com', '*********@**********.com']
 #           10:'West Window',
 #           11:'Motion Diningroom'}
 
-ACTPINS = []
-SENSOR = []
-PINS = []
-
-with open('pipins.conf') as my_file:
-    for line in my_file:
-        PINS.append(line)
-
-ACTPINS = [i[0] for i in PINS]
-SENSOR  = [i[1] for i in PINS]
+ACTPINS = {}
+ with open('pipins.conf','r') as my_file:
+   for line in my_file:
+     l_split = line.split()
+     ACTPINS[int(l_split[0])] = l_split[1]
 
 def current_date (fmt="%a %d-%m-%Y @ %H:%M:%S"):
     return datetime.strftime(datetime.now(), fmt)
