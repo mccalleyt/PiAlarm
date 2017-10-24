@@ -1,49 +1,52 @@
 #!/usr/bin/env python
 from gpiozero import Button
 from signal import pause
-import time
 from datetime import datetime
 import subprocess
 from string import Template
 
-aSLEEP_TIME  = 0.01
-NOTIFY_LIST = ['*******@*******.com', '*********@**********.com'] 
-#ACTPINS = {8:'Door',
-#           9:'East Window',
-#           10:'West Window',
-#           11:'Motion Diningroom'}
+emails = open('email.conf', 'r')
+pipins = open('pipins.conf', 'r')
 
-ACTPINS = {}
- with open('pipins.conf','r') as my_file:
-   for line in my_file:
-     l_split = line.split()
-     ACTPINS[int(l_split[0])] = l_split[1]
+notifylist = []
+for word in emails.read().split():
+    notifylist.append(word)
 
-def current_date (fmt="%a %d-%m-%Y @ %H:%M:%S"):
+actpins = {}
+for line in pipins:
+    l_split = line.split()
+    actpins[int(l_split[0])] = l_split[1]
+
+
+def current_date(fmt="%a %d-%m-%Y @ %H:%M:%S"):
     return datetime.strftime(datetime.now(), fmt)
 
-NOTIFY_CMD = {pin: Template("""echo "$date $sensor $state" | mail -s "Pi: $sensor $state" $email""") for pin in ACTPINS}
- 
-def notify (id, state, sensor_name):
+
+notifycmd = {pin: Template("""echo "$date $sensor $state" | mail -s "Pi: $sensor $state" $email""") for pin in ACTPINS}
+
+
+def notify(id, state, sensor_name):
     """Send each of the email addresses in NOTIFY_LIST a message"""
-    for email in NOTIFY_LIST:
-        shell_cmd = NOTIFY_CMD[id].substitute(date=current_date(),
-                                  state=state, sensor=sensor_name, email=email)
-        proc = subprocess.Popen(shell_cmd, shell=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    for email in notifylist:
+        shell_cmd = notifycmd[id].substitute(date=current_date(), state=state, sensor=sensor_name, email=email)
+        proc = subprocess.Popen(shell_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout_value, stderr_value = proc.communicate()
-        with open('log.txt', 'a') as f:
-          f.write('{}\n'.format(shell_cmd))
- 
-def do_action(button):
-  # function to send email etc will only run when opened or closed
-  state = 'closed' if button.is_pressed else 'opened'
-  notify(button.pin, state, ACTPINS[button.pin])
+        # This is where the sensor state changes are written to a file called sensor.log
+        with open('sensor.log', 'a') as f:
+            f.write('{}\n'.format(shell_cmd))
+
+
+def dostate(button):
+    # function to send email etc will only run when opened or closed
+    state = 'closed' if button.is_pressed else 'opened'
+    notify(button.pin, state, actpins[button.pin])
+    print(state)
+
 
 buttons = {}
-for id in ACTPINS:
-  buttons[id] = Button(id)
-  buttons[id].when_pressed = do_action
-  buttons[id].when_released = do_action
+for id in actpins:
+    buttons[id] = Button(id)
+    buttons[id].when_pressed = dostate
+    buttons[id].when_released = dostate
 
 pause()
